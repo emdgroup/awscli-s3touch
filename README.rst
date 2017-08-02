@@ -1,6 +1,6 @@
-===
+==============
 awscli-s3touch
-===
+==============
 
 Simulate S3 events without re-uploading a file.
 
@@ -8,11 +8,15 @@ Simulate S3 events without re-uploading a file.
 Usage
 -----
 
+::
+
     $ aws s3 touch --bucket my-bucket --prefix folder/
 
 ------------
 Installation
 ------------
+
+::
 
     $ pip3 install https://github.com/merckgroup/awscli-s3touch/archive/master.zip
     $ aws configure set plugins.name awscli.plugins.s3touch
