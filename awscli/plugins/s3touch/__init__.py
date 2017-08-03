@@ -10,7 +10,7 @@ import os
 import boto3
 import json
 import sys
-import datetime
+from datetime import datetime, timezone
 from urllib import parse
 
 from awscli.customizations.commands import BasicCommand
@@ -55,23 +55,20 @@ class S3Touch(BasicCommand):
         {
             'name': 'max-items', 'cli_type_name': 'integer',
             'help_text': (
-                'The total number of items to return. If the total number of '
-                'items available is more than the value specified in '
-                'max-items then a NextToken will be provided in the output '
-                'that you can use to resume pagination.')
+                'The total number of items to process.')
         },
         {
             'name': 'starting-token',
             'help_text': (
                 'A token to specify where to start paginating. This is the '
-                'NextToken from a previous response.')
+                'NextToken from a previous ``aws ls`` response.')
         },
         {
             'name': 'start-after',
             'help_text': (
                 'StartAfter is where you want Amazon S3 to start listing '
                 'from. Amazon S3 starts listing after this specified key. '
-                'StartAfter can be any key in the bucket')
+                'StartAfter can be any key in the bucket.')
         },
         {
             'name': 'delimiter',
@@ -84,6 +81,10 @@ class S3Touch(BasicCommand):
             self._session, 's3', parsed_globals)
         self._lambda = create_client_from_parsed_globals(
             self._session, 'lambda', parsed_globals)
+        self._sns = create_client_from_parsed_globals(
+            self._session, 'sns', parsed_globals)
+        self._sqs = create_client_from_parsed_globals(
+            self._session, 'sqs', parsed_globals)
         sts = create_client_from_parsed_globals(
             self._session, 'sts', parsed_globals)
 
@@ -127,24 +128,54 @@ class S3Touch(BasicCommand):
             elif(key == 'LambdaFunctionConfigurations'):
                 for config in self._notification_configuration[key]:
                     self.handle_lambda_notification(bucket, file, config)
+            elif(key == 'TopicConfigurations'):
+                for config in self._notification_configuration[key]:
+                    self.handle_topic_notification(bucket, file, config)
+            elif(key == 'QueueConfigurations'):
+                for config in self._notification_configuration[key]:
+                    self.handle_queue_notification(bucket, file, config)
             else:
                 print('{} is currently not supported'.format(key))
 
+    def build_event(self, bucket, file, config):
+        date = datetime.now(timezone.utc).isoformat()
+        return json.dumps({
+            'Records':[{
+                'eventVersion': '2.0', 'eventSource': 'aws:s3', 'awsRegion': self._region,
+                'userIdentity': { 'principalId': 'AWS:{}'.format(self._caller['UserId']) },
+                'eventTime': date, 'eventName': 'ObjectCreated:Put', 's3': {
+                    'configurationId': config['Id'], 's3SchemaVersion': '1.0', 'object': {
+                        'eTag': json.loads(file['ETag']), 'key': parse.quote_plus(file['Key']), 'size': file['Size'],
+                    }, 'bucket': { 'arn': 'arn:aws:s3:::{}'.format(bucket), 'name': bucket }
+                }}]
+        })
+
     def handle_lambda_notification(self, bucket, file, config):
-        fn   = config['LambdaFunctionArn']
-        date = datetime.datetime.utcnow().isoformat()
+        event = self.build_event(bucket, file, config);
+        fn    = config['LambdaFunctionArn']
         self._lambda.invoke(
             FunctionName=fn,
             InvocationType='Event',
-            Payload=json.dumps({
-                'Records':[{
-                    'eventVersion': '2.0', 'eventSource': 'aws:s3', 'awsRegion': self._region,
-                    'userIdentity': { 'principalId': 'AWS:{}'.format(self._caller['UserId']) },
-                    'eventTime': date, 'eventName': 'ObjectCreated:Put', 's3': {
-                        'configurationId': config['Id'], 's3SchemaVersion': '1.0', 'object': {
-                            'eTag': json.loads(file['ETag']), 'key': parse.quote(file['Key']), 'size': file['Size'],
-                        }, 'bucket': { 'arn': 'arn:aws:s3:::{}'.format(bucket), 'name': bucket }
-                    }}]
-            })
+            Payload=event
         )
-        sys.stdout.write('triggered {} with {}'.format(fn, file['Key']) + '\n')
+        sys.stdout.write('published "{}" to {}'.format(file['Key'], fn) + '\n')
+
+    def handle_topic_notification(self, bucket, file, config):
+        event = self.build_event(bucket, file, config);
+        self._sns.publish(
+            TopicArn=config['TopicArn'],
+            Message=event
+        )
+        sys.stdout.write('published "{}" to {}'.format(file['Key'], config['TopicArn']) + '\n')
+
+    def handle_queue_notification(self, bucket, file, config):
+        event = self.build_event(bucket, file, config);
+        if(config.get('QueueUrl') is None):
+            config['QueueUrl'] = self._sqs.get_queue_url(
+                QueueName=config['QueueArn'].split(':')[-1]
+            )['QueueUrl']
+        self._sqs.send_message(
+            QueueUrl=config['QueueUrl'],
+            MessageBody=event
+        )
+        sys.stdout.write('published "{}" to {}'.format(file['Key'], config['QueueArn']) + '\n')
