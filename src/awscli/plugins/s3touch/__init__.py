@@ -1,10 +1,18 @@
 """
-AWSCLI - S3 Touch
-----
-Simulate a touch of S3 objects and trigger events.
-"""
+Copyright 2017 EMD Group (emdgroup.com)
 
-__version__ = '1.0.0'
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
 
 import os
 import boto3
@@ -125,17 +133,19 @@ class S3Touch(BasicCommand):
         for key in self._notification_configuration:
             if(key == 'ResponseMetadata'):
                 continue
-            elif(key == 'LambdaFunctionConfigurations'):
-                for config in self._notification_configuration[key]:
+            configs = self._notification_configuration[key]
+            for config in configs:
+                if config.get('Filter') and not self.evaluate_filter(config['Filter'], file):
+                    continue
+
+                if(key == 'LambdaFunctionConfigurations'):
                     self.handle_lambda_notification(bucket, file, config)
-            elif(key == 'TopicConfigurations'):
-                for config in self._notification_configuration[key]:
+                elif(key == 'TopicConfigurations'):
                     self.handle_topic_notification(bucket, file, config)
-            elif(key == 'QueueConfigurations'):
-                for config in self._notification_configuration[key]:
+                elif(key == 'QueueConfigurations'):
                     self.handle_queue_notification(bucket, file, config)
-            else:
-                print('{} is currently not supported'.format(key))
+                else:
+                    print('{} is currently not supported'.format(key))
 
     def build_event(self, bucket, file, config):
         date = datetime.now(timezone.utc).isoformat()
@@ -149,6 +159,16 @@ class S3Touch(BasicCommand):
                     }, 'bucket': { 'arn': 'arn:aws:s3:::{}'.format(bucket), 'name': bucket }
                 }}]
         })
+
+    def evaluate_filter(self, filter, file):
+        for attr in filter:
+            rules = filter[attr]['FilterRules']
+            for rule in rules:
+                if rule['Name'] == 'Prefix' and not file[attr].startswith(rule['Value']):
+                    return False
+                if rule['Name'] == 'Suffix' and not file[attr].endswith(rule['Value']):
+                    return False
+        return True
 
     def handle_lambda_notification(self, bucket, file, config):
         event = self.build_event(bucket, file, config);

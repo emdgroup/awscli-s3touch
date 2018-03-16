@@ -10,7 +10,7 @@ Usage
 
 ::
 
-    $ aws s3 touch --bucket my-bucket --prefix folder/
+    $ aws s3 touch my-bucket --prefix folder/
 
 ------------
 Installation

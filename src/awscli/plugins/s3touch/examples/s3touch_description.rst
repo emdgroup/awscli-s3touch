@@ -5,8 +5,8 @@ It solves the issue where you want to replay the ``Put`` events that S3 triggers
 when you upload a file to S3. The command will scan the bucket for files and
 trigger the associated events based on the bucket notification configuration.
 
-Lambda, SQS and SNS notification types are supported. Prefix and suffix filters
-are currently ``not supported``.
+Lambda, SQS and SNS notification types are supported as well as prefix and suffix
+filters on the key.
 
 .. note::
 

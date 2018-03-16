@@ -1,0 +1,8 @@
+TemplateBody:
+  Fn::Stringify: !Include environment.template.yml
+
+StackName: s3touch-test
+
+Parameters: []
+
+Capabilities: [CAPABILITY_IAM]

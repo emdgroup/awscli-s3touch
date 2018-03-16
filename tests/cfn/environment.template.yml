@@ -1,31 +1,48 @@
+Parameters:
+  Name:
+    Type: String
+    Default: ''
+
 Resources:
 
-  TopicBucket:
+  TestBucket:
     Type: AWS::S3::Bucket
-    DependsOn: TopicPolicy
+    DependsOn:
+      - TopicPolicy
+      - QueuePolicy
+      - LambdaS3Permission
     Properties:
       NotificationConfiguration:
         TopicConfigurations:
           - Topic: !Ref Topic
             Event: s3:ObjectCreated:*
-
-  QueueBucket:
-    Type: AWS::S3::Bucket
-    DependsOn: QueuePolicy
-    Properties:
-      NotificationConfiguration:
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: .topic
+                  - Name: prefix
+                    Value: topic/
         QueueConfigurations:
           - Queue: !GetAtt Queue.Arn
             Event: s3:ObjectCreated:*
-
-  LambdaBucket:
-    Type: AWS::S3::Bucket
-    DependsOn: LambdaS3Permission
-    Properties:
-      NotificationConfiguration:
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: .queue
+                  - Name: prefix
+                    Value: queue/
         LambdaConfigurations:
           - Function: !GetAtt Lambda.Arn
             Event: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: .lambda
+                  - Name: prefix
+                    Value: lambda/
 
   Topic:
     Type: AWS::SNS::Topic
@@ -70,9 +87,7 @@ Resources:
             Action: sqs:SendMessage
             Resource: !GetAtt Queue.Arn
             Condition:
-              StringEquals:
-                AWS:SourceAccount: !Ref AWS::AccountId
-              ArnEquals:
+              ArnLike:
                 aws:SourceArn: !Sub arn:aws:s3:::${AWS::StackName}-*
           - Effect: Allow
             Principal:
@@ -80,8 +95,8 @@ Resources:
             Action: sqs:SendMessage
             Resource: !GetAtt Queue.Arn
             Condition:
-              ArnEquals:
-                aws:SourceArn: !Ref Topic
+              ArnLike:
+                aws:SourceArn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}-*
 
   LambdaRole:
     Type: AWS::IAM::Role
@@ -123,3 +138,5 @@ Resources:
       FunctionName: !Ref Lambda
       Principal: sns.amazonaws.com
       SourceArn: !Ref Topic
+
+Outputs: {}
