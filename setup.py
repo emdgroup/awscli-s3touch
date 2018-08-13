@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 setup(
     name = 'awscli-s3touch',
     description='Simulate S3 events without re-uploading a file.',
-    long_description=open('README.rst').read(),
+    long_description=open('README.md').read(),
     packages = ['awscli.plugins.s3touch'],
     package_dir={'':'src'},
     version = '0.1.0',
