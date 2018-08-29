@@ -148,7 +148,7 @@ class S3Touch(BasicCommand):
                     print('{} is currently not supported'.format(key))
 
     def build_event(self, bucket, file, config):
-        date = datetime.now(timezone.utc).isoformat()
+        date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         return json.dumps({
             'Records':[{
                 'eventVersion': '2.0', 'eventSource': 'aws:s3', 'awsRegion': self._region,
