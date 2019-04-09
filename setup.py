@@ -3,6 +3,7 @@ setup(
     name = 'awscli-s3touch',
     description='Simulate S3 events without re-uploading a file.',
     long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
     packages = ['awscli.plugins.s3touch'],
     package_dir={'':'src'},
     version = '0.1.0',
