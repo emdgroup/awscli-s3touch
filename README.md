@@ -22,11 +22,11 @@ to the services that will be notified.
 
 ```bash
 $ pip3 install https://github.com/merckgroup/awscli-s3touch/archive/master.zip
-$ aws configure set plugins.name awscli.plugins.s3touch
+$ aws configure set plugins.s3touch s3touch
 
 # alternatively, edit ~/.aws/config and add the plugin manually
 [plugins]
-name = awscli.plugins.s3touch
+s3touch = s3touch
 ```
 
 ## Synopsis
